@@ -1,0 +1,59 @@
+LLM MIDI Notation - Anleitung und Ausgabeformatierungs-Prompt
+==============================================================
+
+**Teil 1: Beschreibung des Notationsformats (für Interpretation)**
+
+Dieses Format wandelt MIDI-Daten in eine für LLMs lesbare Textform um.
+
+1.  **Grundstruktur:**
+    * Optional: Initiale Tonart (`Key: ...`).
+    * Mehrere Instrumentenspuren, getrennt durch zwei Leerzeilen (`\n\n`).
+    * Jede Spur beginnt mit `T{Index} {Name}:` (z.B. `T0 Flute 1:`), gefolgt von der Notation in einer Zeile.
+
+2.  **Elemente pro Spur:** (durch Leerzeichen getrennt)
+    * **Taktstriche:** `|` trennt Takte. `| 1`, `| 5`, `| 10` etc. nummerieren den jeweiligen Taktbeginn. (Achtung: Taktstrichplatzierung basiert nur auf initialer Taktart!).
+    * **Taktartwechsel:** `[Zähler/Nenner]` (z.B. `[6/8]`). Beeinflusst Taktstrichplatzierung aktuell NICHT.
+    * **Dynamik:** `dyn(symbol)` (z.B. `dyn(mf)`, `dyn(p)`) markiert Dynamikwechsel *vor* der ersten betroffenen Note. Symbole: ppp, pp, p, mp, mf, f, ff, fff.
+    * **Noten:** `TonhöheOktave/DauerCode[~]`
+        * Tonhöhe: C, D, E, F, G, A, B mit `#` (Kreuz) oder `b` (B). C4 = mittleres C.
+        * DauerCode: `/1` (Ganze), `/2` (Halbe), `/4` (Viertel), `/8` (Achtel), `/16`, `/32`, `/64`, `/0.5` (Doppelganze). Mit `.` für Punktierungen (z.B. `/4.`).
+        * Haltebogen: `~` nach DauerCode (z.B. `/4~`).
+        * Unsicher: `/?` wenn Dauer nicht klar quantisierbar war.
+    * **Akkorde:** Noten mit `+` verbinden, gemeinsame Dauer am Ende (`C4+E4+G4/2`). Noten nach Tonhöhe sortiert. Haltebogen gilt für Akkord.
+    * **Pausen:** `R/DauerCode` (z.B. `R/4`, `R/8.`, `R/?`). `R/1` für Ganztaktpause. Mehrtaktpausen als `| # R/1 | # R/1 ...`.
+
+3.  **Ignoriert/Nicht enthalten:** Artikulationen, Triolen/N-tolen, Cresc./Dim., MIDI-Kanäle.
+
+---
+
+**Teil 2: Anweisungen für LLM zur Ausgabeformatierung**
+
+Bitte generiere musikalischen Inhalt und formatiere ihn **exakt** nach den oben in Teil 1 beschriebenen Regeln. Beachte insbesondere:
+
+* Beginne mit der globalen Tonart: `Key: {KeyName}`.
+* Verwende für jede Instrumentenstimme den Header `T{Index} {Name}:`.
+* Trenne Spuren durch genau zwei Leerzeilen.
+* Trenne alle Elemente innerhalb einer Spur durch genau ein Leerzeichen.
+* Beginne jede Spur mit einem Taktstrich (`| 1`).
+* Verwende `| # ` für Taktnummern (nur 1, 5, 10...).
+* Halte das Format `PitchOctave/DurationCode[~]` für Noten strikt ein.
+* Verwende `/1`, `/2`, `/4` etc. und `.` für Punktierungen.
+* Verwende `/?` nur, wenn eine Dauer absolut unklar ist. **Vermeide Triolen/N-tolen-Markierungen** wie `/8t`.
+* Füge Haltebögen als `~` an die *erste* Note einer Bindung an.
+* Verwende `R/DurationCode` für Pausen, `R/1` für Ganztaktpausen und `| # R/1`-Sequenzen für Mehrtaktpausen.
+* Kombiniere Akkorde mit `+` und sortiere sie nach Tonhöhe.
+* Setze Dynamik-Marker `dyn(symbol)` nur bei Änderungen *vor* die erste betroffene Note.
+* Setze Taktart-Marker `[N/D]` an die korrekte zeitliche Position *vor* das erste betroffene Event.
+* Füge **keine** Kommentare (wie `//` oder `#`), Harmonie-Analysen oder andere nicht definierte Elemente hinzu.
+
+**Beispiel für korrekt formatierten Output:**
+
+Key: Dm
+
+T0 Flute:
+| 1 E5/4 F5/4 G5/2 | 2 dyn(p) A5/1 | 3 R/1 | 4 G5/2 F5/2 | 5 E5/1
+
+T1 Piano:
+| 1 C4+A4/2 C4+G4/2 | 2 dyn(p) F3+A3+C4/1 | 3 R/1 | 4 G3+B3+D4/2 C3+G3+C4/2 | 5 C3+G3+C4+E4/1
+
+Danke für das exakte Befolgen dieser Formatierungsrichtlinien!

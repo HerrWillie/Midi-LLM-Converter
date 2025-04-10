@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# VS Code settings
+.vscode/
+
+# PyInstaller build artifacts
+dist/
+build/
+*.spec
+
+# Logs (wollen wir nicht versionieren)
+logs/
+*.log
+
+# OS specific
+.DS_Store
+Thumbs.db
