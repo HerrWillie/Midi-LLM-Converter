@@ -220,14 +220,68 @@ class MidiConverterApp:
     def run_conversion(self, input_file_path):
         """Führt die Konvertierung durch."""
         try:
-            # Beispiel: MIDI -> Text-Konvertierung
-            self.log_output(f"Verarbeite Datei: {input_file_path}", "INFO")
-            # Hier die Konvertierungslogik einfügen
+            # Bestimme den vollständigen Pfad zur Anleitungs-/Prompt-Datei im Hauptverzeichnis
+            guide_prompt_path = os.path.join(os.path.dirname(__file__), GUIDE_PROMPT_FILENAME)
+
+            # Initialisiere eine Variable für den Textinhalt mit einem Fallback-Wert
+            guide_text_content = FALLBACK_GUIDE_TEXT
+
+            # Versuche, die Datei zu lesen
+            if os.path.exists(guide_prompt_path):
+                with open(guide_prompt_path, 'r', encoding='utf-8') as f_guide_read:
+                    guide_text_content = f_guide_read.read()
+                    self.log_output(f"Anleitung/Prompt-Datei gelesen: {guide_prompt_path}", "INFO")
+            else:
+                guide_text_content = f"FEHLER: Datei '{guide_prompt_path}' nicht gefunden..."
+                self.log_output(guide_text_content, "ERROR")
+                logging.error(guide_text_content)
+
+            # Beginne die Konvertierung der MIDI-Datei
+            mid = mido.MidiFile(input_file_path)
+            output_text = []
+
+            # Füge die Tonart und andere Metadaten hinzu
+            output_text.append(f"Key: {DEFAULT_KEY_SIGNATURE}")
+
+            # Iteriere über die Tracks und konvertiere die Events
+            track_names = get_track_names(mid)
+            for i, track in enumerate(mid.tracks):
+                output_text.append(f"T{i} {track_names.get(i, 'Unbenannter Track')}:\n")
+                measure_counter = 1
+                measure_events = []
+                ticks_per_beat = mid.ticks_per_beat
+                current_time = 0
+
+                for msg in track:
+                    current_time += msg.time
+                    if msg.type == 'note_on' and msg.velocity > 0:
+                        pitch = midi_note_to_llm_pitch(msg.note)
+                        duration = "1"  # Platzhalter für Dauer
+                        measure_events.append(f"{pitch}/{duration}")
+                    elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
+                        # Behandle Note-Off-Ereignisse
+                        pass
+
+                    # Füge Taktstriche hinzu, basierend auf der Zeit
+                    if current_time >= ticks_per_beat * 4 * measure_counter:
+                        output_text.append(f"| {measure_counter} {' '.join(measure_events)}")
+                        measure_events = []
+                        measure_counter += 1
+
+                # Füge verbleibende Events hinzu
+                if measure_events:
+                    output_text.append(f"| {measure_counter} {' '.join(measure_events)}")
+
+            # Schreibe die konvertierte Ausgabe in das Textfeld
+            self.display_output_text("\n".join(output_text))
+
         except Exception as e:
-            self.log_output(f"FEHLER bei der Verarbeitung: {e}", "ERROR")
-            logging.error("FEHLER bei der Verarbeitung!", exc_info=True)
-        finally:
-            self.master.after(0, self.reactivate_buttons)
+            guide_text_content = FALLBACK_GUIDE_TEXT
+            self.log_output(f"FEHLER beim Lesen der Anleitung/Prompt-Datei: {e}", "ERROR")
+            logging.error("FEHLER beim Lesen der Anleitung/Prompt-Datei!", exc_info=True)
+
+        # Der Rest der Funktion sollte guide_text_content verwenden
+        self.display_output_text(guide_text_content)
 
     def reactivate_buttons(self):
         """Reaktiviert die Buttons nach Abschluss der Konvertierung."""
@@ -235,6 +289,13 @@ class MidiConverterApp:
         self.select_button.configure(state='normal')
         self.direction_button.configure(state='normal')
         self.log_output("Bereit für die nächste Aktion.", "INFO")
+
+    def display_output_text(self, text_content):
+        """Zeigt den Textinhalt im Textbereich an."""
+        self.text_area.configure(state='normal')
+        self.text_area.delete('1.0', tk.END)
+        self.text_area.insert('1.0', text_content)
+        self.text_area.configure(state='disabled')
 
 # --- Hauptteil ---
 if __name__ == "__main__":
