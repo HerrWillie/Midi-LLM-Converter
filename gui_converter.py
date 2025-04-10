@@ -242,12 +242,152 @@ class MidiConverterApp:
             self.log_output_text.see(tk.END)
         self.master.after(0, _update_log) # Ensure GUI update is thread-safe
 
+<<<<<<< HEAD
     def display_output_text(self, text):
         # ... (display_output_text remains the same) ...
         def _update_output():
             self.output_text.delete("1.0", tk.END)
             self.output_text.insert(tk.END, text)
         self.master.after(0, _update_output)
+=======
+        if hasattr(self, 'log_area') and self.log_area.winfo_exists():
+            self.master.after(0, lambda: self.update_gui_log(message, level))
+
+    def update_gui_log(self, message, level):
+        """Aktualisiert das Log im GUI."""
+        self.log_area.configure(state='normal')
+        self.log_area.insert(tk.END, f"[{level}] {message}\n")
+        self.log_area.configure(state='disabled')
+        self.log_area.see(tk.END)
+
+    def select_input_file(self):
+        """Öffnet einen Dateidialog für die Eingabedatei."""
+        filetypes = [("Musikdateien", "*.mid *.midi *.mscz *.mscx"), ("Alle Dateien", "*.*")]
+        filepath = filedialog.askopenfilename(title="MIDI/MuseScore Datei wählen", filetypes=filetypes)
+        if filepath:
+            self.input_file_path.set(filepath)
+            self.log_output(f"Input-Datei ausgewählt: {filepath}", "INFO")
+            self.convert_button.configure(state='normal')
+        else:
+            self.log_output("Keine Input-Datei ausgewählt.", "INFO")
+            self.convert_button.configure(state='disabled')
+
+    def select_output_file(self):
+        """Öffnet einen Dateidialog für die Ausgabedatei."""
+        filetypes = [("MIDI-Dateien", "*.mid *.midi"), ("Alle Dateien", "*.*")]
+        filepath = filedialog.asksaveasfilename(title="MIDI Datei speichern unter", filetypes=filetypes, defaultextension=".mid")
+        if filepath:
+            self.input_file_path.set(filepath)
+            self.log_output(f"Output-Datei ausgewählt: {filepath}", "INFO")
+            self.convert_button.configure(state='normal')
+        else:
+            self.log_output("Keine Output-Datei ausgewählt.", "INFO")
+            self.convert_button.configure(state='disabled')
+
+    def toggle_direction(self):
+        """Wechselt die Konvertierungsrichtung."""
+        current_direction = self.conversion_direction.get()
+        if current_direction == "->":
+            self.conversion_direction.set("<-")
+            self.input_label.configure(text="Output (MIDI):")
+            self.select_button.configure(text="Output wählen...", command=self.select_output_file)
+            self.text_area.configure(state='normal')
+            self.text_area.delete('1.0', tk.END)
+            self.text_area.insert('1.0', "# Hier LLM Notation einfügen...\nKey: C\n\nT0 Piano:\n| 1 C4/4 E4/4 G4/2 | 2 C5/1")
+            self.log_output("Richtung geändert: Text -> MIDI", "INFO")
+        else:
+            self.conversion_direction.set("->")
+            self.input_label.configure(text="Input (MIDI/MSCZ):")
+            self.select_button.configure(text="Input wählen...", command=self.select_input_file)
+            self.text_area.configure(state='normal')
+            self.text_area.delete('1.0', tk.END)
+            self.text_area.insert('1.0', "Anleitung/Prompt wird nach Konvertierung geladen...")
+            self.text_area.configure(state='disabled')
+            self.log_output("Richtung geändert: MIDI -> Text", "INFO")
+        self.convert_button.configure(state='disabled')
+        self.input_file_path.set("")
+
+    def start_conversion_threaded(self):
+        """Startet die Konvertierung in einem separaten Thread."""
+        input_path = self.input_file_path.get()
+        if not input_path:
+            self.log_output("FEHLER: Keine Eingabedatei ausgewählt!", "ERROR")
+            return
+
+        self.log_output(f"Starte Konvertierung ({self.conversion_direction.get()}) für: {input_path}", "INFO")
+        self.convert_button.configure(state='disabled')
+        self.select_button.configure(state='disabled')
+        self.direction_button.configure(state='disabled')
+
+        thread = threading.Thread(target=self.run_conversion, args=(input_path,), daemon=True)
+        thread.start()
+
+    def run_conversion(self, input_file_path):
+        """Führt die Konvertierung durch."""
+        try:
+            # Bestimme den vollständigen Pfad zur Anleitungs-/Prompt-Datei im Hauptverzeichnis
+            guide_prompt_path = os.path.join(os.path.dirname(__file__), GUIDE_PROMPT_FILENAME)
+
+            # Initialisiere eine Variable für den Textinhalt mit einem Fallback-Wert
+            guide_text_content = FALLBACK_GUIDE_TEXT
+
+            # Versuche, die Datei zu lesen
+            if os.path.exists(guide_prompt_path):
+                with open(guide_prompt_path, 'r', encoding='utf-8') as f_guide_read:
+                    guide_text_content = f_guide_read.read()
+                    self.log_output(f"Anleitung/Prompt-Datei gelesen: {guide_prompt_path}", "INFO")
+            else:
+                guide_text_content = f"FEHLER: Datei '{guide_prompt_path}' nicht gefunden..."
+                self.log_output(guide_text_content, "ERROR")
+                logging.error(guide_text_content)
+
+            # Beginne die Konvertierung der MIDI-Datei
+            mid = mido.MidiFile(input_file_path)
+            output_text = []
+
+            # Füge die Tonart und andere Metadaten hinzu
+            output_text.append(f"Key: {DEFAULT_KEY_SIGNATURE}")
+
+            # Iteriere über die Tracks und konvertiere die Events
+            track_names = get_track_names(mid)
+            for i, track in enumerate(mid.tracks):
+                output_text.append(f"T{i} {track_names.get(i, 'Unbenannter Track')}:\n")
+                measure_counter = 1
+                measure_events = []
+                ticks_per_beat = mid.ticks_per_beat
+                current_time = 0
+
+                for msg in track:
+                    current_time += msg.time
+                    if msg.type == 'note_on' and msg.velocity > 0:
+                        pitch = midi_note_to_llm_pitch(msg.note)
+                        duration = "1"  # Platzhalter für Dauer
+                        measure_events.append(f"{pitch}/{duration}")
+                    elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
+                        # Behandle Note-Off-Ereignisse
+                        pass
+
+                    # Füge Taktstriche hinzu, basierend auf der Zeit
+                    if current_time >= ticks_per_beat * 4 * measure_counter:
+                        output_text.append(f"| {measure_counter} {' '.join(measure_events)}")
+                        measure_events = []
+                        measure_counter += 1
+
+                # Füge verbleibende Events hinzu
+                if measure_events:
+                    output_text.append(f"| {measure_counter} {' '.join(measure_events)}")
+
+            # Schreibe die konvertierte Ausgabe in das Textfeld
+            self.display_output_text("\n".join(output_text))
+
+        except Exception as e:
+            guide_text_content = FALLBACK_GUIDE_TEXT
+            self.log_output(f"FEHLER beim Lesen der Anleitung/Prompt-Datei: {e}", "ERROR")
+            logging.error("FEHLER beim Lesen der Anleitung/Prompt-Datei!", exc_info=True)
+
+        # Der Rest der Funktion sollte guide_text_content verwenden
+        self.display_output_text(guide_text_content)
+# >>>>>>> 073e7e394be9531c1f93b959e26c439554bbd316
 
     def reactivate_buttons(self):
         # ... (reactivate_buttons remains the same) ...
@@ -257,6 +397,7 @@ class MidiConverterApp:
             self.browse_button.config(state=tk.NORMAL)
         self.master.after(0, _update_buttons)
 
+<<<<<<< HEAD
     def run_conversion(self, input_path, direction, llm_input_text):
         # ... (run_conversion structure remains similar, calls new midi_to_text) ...
         self.convert_midi_to_text_button.config(state=tk.DISABLED)
@@ -582,6 +723,16 @@ class MidiConverterApp:
         return "\n\n".join(output_lines)
 
 # --- Main ---
+# =======
+    def display_output_text(self, text_content):
+        """Zeigt den Textinhalt im Textbereich an."""
+        self.text_area.configure(state='normal')
+        self.text_area.delete('1.0', tk.END)
+        self.text_area.insert('1.0', text_content)
+        self.text_area.configure(state='disabled')
+
+# --- Hauptteil ---
+# >>>>>>> 073e7e394be9531c1f93b959e26c439554bbd316
 if __name__ == "__main__":
     setup_logging()
     try:
