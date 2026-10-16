@@ -1,0 +1,12 @@
+{
+  "uri": "musescore://extensions/midi-llm-converter",
+  "author": "HerrWillie",
+  "type": "macros",
+  "title": "MIDI-LLM Converter",
+  "description": "Convert between MuseScore scores and LLM-readable text notation (both directions). Includes compact verification output and LLM-optimized output.",
+  "actions": [
+    {
+      "path": "main.js"
+    }
+  ]
+}

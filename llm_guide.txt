@@ -1,0 +1,147 @@
+================================================================================
+  MIDI-LLM Converter — Notation Guide
+  MuseScore 4 Extension
+================================================================================
+
+This guide describes BOTH output formats produced by the extension:
+
+  1. COMPACT FORMAT — for human verification (matches original Python CLI)
+  2. LLM-OPTIMIZED FORMAT — for copying/pasting into an AI assistant
+
+================================================================================
+  1. COMPACT FORMAT (for verification)
+================================================================================
+
+Structure:
+  Key: <keyname>                                    (optional global header)
+  <blank line>
+  T<index> <TrackName>:
+  <elements separated by spaces>
+  <blank line>
+  T<index> <TrackName>:
+  ...
+
+Elements (within a track, space-separated):
+  |              Barline (measure separator)
+  | 5            Barline with measure number (every 5th measure)
+  [4/4]          Time signature change
+  dyn(mf)        Dynamic marking (ppp, pp, p, mp, mf, f, ff, fff)
+  C4/4           Single note: pitch/octave + duration code
+  C4+E4+G4/4     Chord: pitches joined by +, shared duration code at end
+  R/4            Rest: R + duration code
+  R/1            Whole-measure rest
+  /4~            Tie marker (append ~ to duration code)
+  /?             Uncertain / unquantizable duration
+
+Duration codes:
+  /0.5  = double whole (8 beats)
+  /1    = whole (4 beats)
+  /2.   = dotted half (3 beats)
+  /2    = half (2 beats)
+  /4.   = dotted quarter (1.5 beats)
+  /4    = quarter (1 beat)
+  /8.   = dotted eighth (0.75 beats)
+  /8    = eighth (0.5 beats)
+  /16.  = dotted 16th (0.375 beats)
+  /16   = 16th (0.25 beats)
+  /32.  = dotted 32nd (0.1875 beats)
+  /32   = 32nd (0.125 beats)
+  /64   = 64th (0.0625 beats)
+
+Pitch notation:
+  C, C#, D, D#, E, F, F#, G, G#, A, A#, B + octave number
+  Example: C4 = middle C, F#5 = F sharp above middle C
+
+Example (compact):
+  Key: C
+
+  T0 Piano:
+  | 1 C4/4 E4/4 G4/4 | 2 C5/4 |
+
+  T1 Bass:
+  | 1 C3/4 E3/4 G3/4 | 2 C4/4 |
+
+================================================================================
+  2. LLM-OPTIMIZED FORMAT (for AI assistants)
+================================================================================
+
+Structure:
+  [FORMAT: midi-llm v1]
+  [TEMPO: 120]
+  [TIME_SIGNATURE: 4/4]
+  [KEY: C]
+  <blank line>
+  [TRACK: 0 | Piano]
+  note pitch=C4 duration=quarter velocity=mf
+  note pitch=E4 duration=quarter velocity=mf
+  barline
+  <blank line>
+  [TRACK: 1 | Bass]
+  ...
+
+Header fields:
+  [FORMAT: midi-llm v1]    Format identifier and version
+  [TEMPO: 120]             Tempo in BPM
+  [TIME_SIGNATURE: 4/4]    Time signature
+  [KEY: C]                 Global key signature
+
+Track header:
+  [TRACK: <index> | <name>]   Start of a new track/staff
+
+Events (one per line):
+  note pitch=C4 duration=quarter velocity=mf
+  note pitch=F#5 duration=eighth velocity=f
+  chord pitch=C4 pitch=E4 pitch=G4 duration=half velocity=mf
+  rest duration=quarter
+  rest duration=whole
+  barline
+  barline 5                          (barline with measure number)
+  tie pitch=C4                       (tie to previous note of same pitch)
+
+Duration names (LLM-optimized):
+  whole, half, quarter, eighth, 16th, 32nd, 64th
+  dotted variants: use the base name (LLM should infer from context)
+
+Velocity symbols:
+  ppp, pp, p, mp, mf, f, ff, fff
+
+Example (LLM-optimized):
+  [FORMAT: midi-llm v1]
+  [TEMPO: 120]
+  [TIME_SIGNATURE: 4/4]
+  [KEY: C]
+
+  [TRACK: 0 | Piano]
+  note pitch=C4 duration=quarter velocity=mf
+  note pitch=E4 duration=quarter velocity=mf
+  note pitch=G4 duration=quarter velocity=mf
+  barline
+  note pitch=C5 duration=quarter velocity=mf
+  barline
+
+  [TRACK: 1 | Bass]
+  note pitch=C3 duration=quarter velocity=mf
+  note pitch=E3 duration=quarter velocity=mf
+  note pitch=G3 duration=quarter velocity=mf
+  barline
+  note pitch=C4 duration=quarter velocity=mf
+  barline
+
+================================================================================
+  Instructions for LLMs
+================================================================================
+
+When reading or writing this notation:
+
+1. Read the [FORMAT], [TEMPO], [TIME_SIGNATURE], and [KEY] headers first.
+2. Each [TRACK] block is an independent staff/instrument.
+3. Within a track, events appear in chronological order.
+4. "barline" marks the end of a measure.
+5. Use pitch names like C4, F#5, Db3 (octave number is required).
+6. Use duration names: whole, half, quarter, eighth, 16th.
+7. For chords, list all pitches on one "chord" line with a shared duration.
+8. "rest" indicates silence; "barline" indicates measure boundary.
+9. velocity uses dynamic symbols: ppp (softest) to fff (loudest).
+10. Do not add comments, analysis, or extra text outside the format.
+
+================================================================================
